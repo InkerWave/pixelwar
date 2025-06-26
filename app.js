@@ -20,12 +20,14 @@ const gameContainer = document.getElementById('game-container');
 const loginForm = document.getElementById('login-form');
 const emailInput = document.getElementById('email');
 const passwordInput = document.getElementById('password');
+const nicknameInput = document.getElementById('nickname'); // Добавьте это поле в HTML
 const loginBtn = document.getElementById('login-btn');
 const registerBtn = document.getElementById('register-btn');
 const logoutBtn = document.getElementById('logout-btn');
 const pointsDisplay = document.getElementById('points');
 const selectedColorDisplay = document.getElementById('selected-color');
 const grid = document.getElementById('grid');
+const userNicknameDisplay = document.getElementById('user-nickname'); // Добавьте этот элемент в HTML
 
 // Цвета для палитры
 const colors = [
@@ -36,6 +38,7 @@ const colors = [
 
 let points = 100;
 let selectedColor = '#000000';
+let currentUserNickname = '';
 
 // Инициализация
 init();
@@ -74,9 +77,24 @@ function setupPixelGrid() {
 
         // Слушаем изменения пикселя из Firebase
         database.ref(`pixels/${i}`).on('value', (snapshot) => {
-            const color = snapshot.val();
-            pixel.style.backgroundColor = color || 'white';
-            pixel.classList.toggle('occupied', !!color);
+            const pixelData = snapshot.val();
+            if (pixelData) {
+                pixel.style.backgroundColor = pixelData.color;
+                pixel.dataset.owner = pixelData.ownerId;
+                pixel.classList.add('occupied');
+                
+                // Загружаем никнейм владельца
+                database.ref(`users/${pixelData.ownerId}/nickname`).once('value').then((nickSnapshot) => {
+                    if (nickSnapshot.exists()) {
+                        pixel.dataset.ownerNickname = nickSnapshot.val();
+                    }
+                });
+            } else {
+                pixel.style.backgroundColor = 'white';
+                pixel.classList.remove('occupied');
+                delete pixel.dataset.owner;
+                delete pixel.dataset.ownerNickname;
+            }
         });
 
         // Обработчик клика по пикселю
@@ -85,7 +103,11 @@ function setupPixelGrid() {
             if (!user) return;
             
             if (points > 0 && !pixel.classList.contains('occupied')) {
-                database.ref(`pixels/${i}`).set(selectedColor);
+                database.ref(`pixels/${i}`).set({
+                    color: selectedColor,
+                    ownerId: user.uid,
+                    timestamp: firebase.database.ServerValue.TIMESTAMP
+                });
                 points--;
                 updateUserPoints(user, points);
                 pointsDisplay.textContent = points;
@@ -93,6 +115,23 @@ function setupPixelGrid() {
                 alert('Этот пиксель уже занят!');
             } else {
                 alert('У вас закончились очки!');
+            }
+        });
+
+        // Показываем никнейм при наведении
+        pixel.addEventListener('mouseover', function() {
+            if (this.dataset.ownerNickname) {
+                const tooltip = document.createElement('div');
+                tooltip.className = 'pixel-tooltip';
+                tooltip.textContent = this.dataset.ownerNickname;
+                this.appendChild(tooltip);
+            }
+        });
+
+        pixel.addEventListener('mouseout', function() {
+            const tooltip = this.querySelector('.pixel-tooltip');
+            if (tooltip) {
+                this.removeChild(tooltip);
             }
         });
 
@@ -106,15 +145,27 @@ function setupAuthListeners() {
     registerBtn.addEventListener('click', () => {
         const email = emailInput.value;
         const password = passwordInput.value;
+        const nickname = nicknameInput.value;
+        
+        if (!nickname) {
+            alert('Введите никнейм!');
+            return;
+        }
+
         auth.createUserWithEmailAndPassword(email, password)
             .then((userCredential) => {
-                // Создаем запись пользователя в Firebase
                 const user = userCredential.user;
-                database.ref(`users/${user.uid}`).set({
+                return database.ref(`users/${user.uid}`).set({
                     points: 100,
-                    lastReset: new Date().toDateString()
+                    lastReset: new Date().toDateString(),
+                    nickname: nickname,
+                    email: email
                 });
+            })
+            .then(() => {
                 alert('Регистрация успешна!');
+                currentUserNickname = nickname;
+                userNicknameDisplay.textContent = nickname;
             })
             .catch(error => alert(error.message));
     });
@@ -154,9 +205,11 @@ function loadUserData(user) {
         if (data) {
             checkDailyReset(user, data);
             points = data.points;
+            currentUserNickname = data.nickname || 'Аноним';
+            userNicknameDisplay.textContent = currentUserNickname;
             pointsDisplay.textContent = points;
         } else {
-            // Новый пользователь
+            // Новый пользователь (если вдруг данные не создались)
             resetDailyPoints(user);
         }
     });
@@ -186,20 +239,21 @@ function updateUserPoints(user, newPoints) {
     });
 }
 
-// Добавляем кнопку админа для сброса всех пикселей
-function addAdminResetButton() {
-    const adminBtn = document.createElement('button');
-    adminBtn.textContent = 'ADMIN: Reset All Pixels';
-    adminBtn.style.background = 'red';
-    adminBtn.onclick = () => {
-        if (confirm('⚠️ Удалить ВСЕ пиксели?')) {
-            database.ref('pixels').remove()
-                .then(() => alert('Холст очищен!'))
-                .catch(error => alert('Ошибка: ' + error));
-        }
-    };
-    document.querySelector('.info').appendChild(adminBtn);
-}
-
-// Вызываем после инициализации, если нужно
-// addAdminResetButton();
+// Добавляем CSS для подсказки
+const style = document.createElement('style');
+style.textContent = `
+    .pixel-tooltip {
+        position: absolute;
+        background: rgba(0,0,0,0.8);
+        color: white;
+        padding: 2px 5px;
+        border-radius: 3px;
+        font-size: 10px;
+        z-index: 100;
+        transform: translateY(-20px);
+    }
+    .pixel {
+        position: relative;
+    }
+`;
+document.head.appendChild(style);
