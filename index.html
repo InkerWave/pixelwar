@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pixel War</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+</head>
+<body>
+    <div id="auth-container">
+        <h1>Pixel War</h1>
+        <div id="login-form">
+            <input type="email" id="email" placeholder="Email">
+            <input type="password" id="password" placeholder="Password">
+            <button id="login-btn">Login</button>
+            <button id="register-btn">Register</button>
+        </div>
+    </div>
+
+    <div id="game-container" style="display: none;">
+        <div class="info">
+            <p>Очков сегодня: <span id="points">100</span></p>
+            <p>Выбранный цвет: <span id="selected-color"></span></p>
+            <button id="logout-btn">Logout</button>
+        </div>
+        <div class="color-palette"></div>
+        <div class="pixel-grid" id="grid"></div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
