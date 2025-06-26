@@ -72,17 +72,27 @@ function setupPixelGrid() {
         pixel.className = 'pixel';
         pixel.dataset.index = i;
 
+        // Слушаем изменения пикселя из Firebase
         database.ref(`pixels/${i}`).on('value', (snapshot) => {
             const color = snapshot.val();
             pixel.style.backgroundColor = color || 'white';
             pixel.classList.toggle('occupied', !!color);
         });
 
+        // Обработчик клика по пикселю
         pixel.addEventListener('click', () => {
+            const user = auth.currentUser;
+            if (!user) return;
+            
             if (points > 0 && !pixel.classList.contains('occupied')) {
                 database.ref(`pixels/${i}`).set(selectedColor);
                 points--;
+                updateUserPoints(user, points);
                 pointsDisplay.textContent = points;
+            } else if (pixel.classList.contains('occupied')) {
+                alert('Этот пиксель уже занят!');
+            } else {
+                alert('У вас закончились очки!');
             }
         });
 
@@ -97,7 +107,15 @@ function setupAuthListeners() {
         const email = emailInput.value;
         const password = passwordInput.value;
         auth.createUserWithEmailAndPassword(email, password)
-            .then(() => alert('Регистрация успешна!'))
+            .then((userCredential) => {
+                // Создаем запись пользователя в Firebase
+                const user = userCredential.user;
+                database.ref(`users/${user.uid}`).set({
+                    points: 100,
+                    lastReset: new Date().toDateString()
+                });
+                alert('Регистрация успешна!');
+            })
             .catch(error => alert(error.message));
     });
 
@@ -119,7 +137,7 @@ function setupAuthListeners() {
         if (user) {
             authContainer.style.display = 'none';
             gameContainer.style.display = 'block';
-            resetDailyPoints();
+            loadUserData(user);
         } else {
             authContainer.style.display = 'block';
             gameContainer.style.display = 'none';
@@ -127,17 +145,61 @@ function setupAuthListeners() {
     });
 }
 
-// Сброс очков ежедневно
-function resetDailyPoints() {
-    const today = new Date().toDateString();
-    const lastReset = localStorage.getItem('lastReset');
+// Загрузка данных пользователя
+function loadUserData(user) {
+    const userRef = database.ref(`users/${user.uid}`);
     
-    if (lastReset !== today) {
-        points = 100;
-        localStorage.setItem('lastReset', today);
-        pointsDisplay.textContent = points;
-    } else {
-        points = parseInt(localStorage.getItem('points')) || 100;
-        pointsDisplay.textContent = points;
+    userRef.on('value', (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+            checkDailyReset(user, data);
+            points = data.points;
+            pointsDisplay.textContent = points;
+        } else {
+            // Новый пользователь
+            resetDailyPoints(user);
+        }
+    });
+}
+
+// Проверка ежедневного сброса очков
+function checkDailyReset(user, userData) {
+    const today = new Date().toDateString();
+    if (userData.lastReset !== today) {
+        resetDailyPoints(user);
     }
 }
+
+// Сброс очков
+function resetDailyPoints(user) {
+    const today = new Date().toDateString();
+    database.ref(`users/${user.uid}`).update({
+        points: 100,
+        lastReset: today
+    });
+}
+
+// Обновление очков пользователя
+function updateUserPoints(user, newPoints) {
+    database.ref(`users/${user.uid}`).update({
+        points: newPoints
+    });
+}
+
+// Добавляем кнопку админа для сброса всех пикселей
+function addAdminResetButton() {
+    const adminBtn = document.createElement('button');
+    adminBtn.textContent = 'ADMIN: Reset All Pixels';
+    adminBtn.style.background = 'red';
+    adminBtn.onclick = () => {
+        if (confirm('⚠️ Удалить ВСЕ пиксели?')) {
+            database.ref('pixels').remove()
+                .then(() => alert('Холст очищен!'))
+                .catch(error => alert('Ошибка: ' + error));
+        }
+    };
+    document.querySelector('.info').appendChild(adminBtn);
+}
+
+// Вызываем после инициализации, если нужно
+// addAdminResetButton();
