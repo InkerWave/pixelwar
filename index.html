@@ -14,6 +14,7 @@
     <div id="auth-container">
         <h1>Pixel War</h1>
         <div id="login-form">
+            <input type="text" id="nickname" placeholder="Ваш никнейм">
             <input type="email" id="email" placeholder="Email">
             <input type="password" id="password" placeholder="Password">
             <button id="login-btn">Login</button>
@@ -23,6 +24,7 @@
 
     <div id="game-container" style="display: none;">
         <div class="info">
+            <p>Ваш ник: <span id="user-nickname"></span></p>
             <p>Очков сегодня: <span id="points">100</span></p>
             <p>Выбранный цвет: <span id="selected-color"></span></p>
             <button id="logout-btn">Logout</button>
